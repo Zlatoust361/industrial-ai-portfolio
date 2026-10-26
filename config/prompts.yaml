@@ -1,0 +1,41 @@
+# Zero-shot defect-classification prompt styles, read by PromptManager
+# (src/data/prompts.py). Each style maps class label -> list of phrases;
+# phrases within a class are averaged into one reference embedding
+# (see src.models.zero_shot.average_prompt_embedding), so a style with more
+# phrasings per class gets a more robust (but not necessarily "better")
+# reference vector. English phrasing matches CLIP's training distribution.
+#
+# "ok" / "defect" are the two classes clip_classifier.py compares each
+# image against via cosine similarity -- add more classes here only if the
+# classifier is extended to support them.
+
+styles:
+  basic:
+    ok:
+      - "a photo of a normal part"
+      - "a photo of an object with no defects"
+    defect:
+      - "a photo of a defective part"
+      - "a photo of an object with a visible defect"
+
+  industrial:
+    ok:
+      - "a photo of an industrial component in normal condition"
+      - "a defect-free manufactured metal part"
+      - "a quality-inspected part with no visible flaws"
+    defect:
+      - "a photo of an industrial component with a manufacturing defect"
+      - "a manufactured metal part with a visible flaw"
+      - "a quality-inspection reject due to a visible surface defect"
+
+  detailed:
+    ok:
+      - "a high-resolution close-up of a pristine metal surface with uniform texture and no scratches, dents, cracks, discoloration, or corrosion"
+      - "a defect-free manufactured part with a smooth, even surface finish and consistent color"
+      - "an industrial component that passed quality inspection with no visible surface anomalies"
+    defect:
+      - "a high-resolution close-up of a metal surface with a visible scratch"
+      - "a high-resolution close-up of a metal surface with a visible dent"
+      - "a high-resolution close-up of a metal surface with a visible crack"
+      - "a high-resolution close-up of a metal surface with visible corrosion or rust"
+      - "a high-resolution close-up of a metal surface with discoloration or a stain"

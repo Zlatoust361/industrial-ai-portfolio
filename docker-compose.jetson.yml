@@ -1,0 +1,70 @@
+# docker-compose.jetson.yml -- run the VLM inference API on a real Jetson
+# Orin Nano. Built/deployed by scripts/deploy_to_jetson.sh (week 08 day 2);
+# built from Dockerfile.jetson (week 08 day 3).
+#
+# Canonical-path decision (course/TECH-DEBT.md's F.1): this file remains
+# the documented, supported way to run vlm-inference for solo dev-machine
+# iteration and weeks 08-10, before a k3s cluster exists on the device --
+# NOT deprecated. Once a real/persistent pilot exists (week 11-12+, or as
+# soon as k3s is set up on the device), `k3s/` + `.github/workflows/
+# jetson-cicd.yml` is the canonical path instead (see
+# course/JETSON-GUIDE.md's section 2). The two must never both be
+# `up -d` for the same vlm-inference at once (double memory usage on an
+# 8 GB device) -- scripts/deploy_to_jetson.sh now checks the target host
+# for an already-running k3s Deployment before starting this file's
+# service and refuses if it finds one.
+#
+# mem_limit/memswap_limit (NOT deploy.resources.limits -- that block is
+# Swarm-only and silently ignored by plain `docker compose up`, a common
+# footgun this file deliberately avoids) budget 6 GiB to the container,
+# leaving ~2 GB of the Orin Nano's 8 GB for the OS, other services, and
+# JetPack's own background daemons -- deliberately matching
+# config/model_config.jetson.yaml's `memory.memory_budget_mb: 6144`
+# exactly, so a model that would already trip
+# src/models/memory.py::check_memory_budget()/check_process_memory()
+# also can't silently exceed the container's own hard cgroup limit.
+#
+# memswap_limit == mem_limit -> ZERO additional swap for this container
+# (Docker's semantics: memswap_limit caps RAM+swap combined, so equal to
+# mem_limit means none of that combined budget is swap). Deliberate for a
+# latency-sensitive inference service: letting an inference process swap
+# is a worse failure mode than it sounds on other workloads -- a swapped
+# page in the middle of a forward pass turns a single request into a
+# multi-second stall, and repeated stalls under memory pressure look like
+# thrashing, not graceful degradation. System-wide swap (zram or a swap
+# file) is still worth enabling on an 8 GB Orin Nano so an unrelated
+# process's memory spike doesn't trigger the kernel OOM-killer against
+# THIS container -- that's a host-level `/etc/systemd` or `nvzramconfig`
+# concern, out of scope for a single service's compose file, and
+# deliberately not addressed here.
+services:
+  vlm-inference:
+    build:
+      context: .
+      dockerfile: Dockerfile.jetson
+    image: vlm-inference:jetson
+    container_name: vlm-inference
+    restart: unless-stopped
+    runtime: nvidia # nvidia-container-runtime -- required for CUDA/GPU access from the container on JetPack
+    ports:
+      - "8000:8000"
+    environment:
+      CONFIG_PATH: config/model_config.jetson.yaml # fp16/cuda -- see src/api/dependencies.py::get_config
+      LOG_LEVEL: INFO
+    volumes:
+      # Persists downloaded CLIP weights across container recreation --
+      # config/model_config.jetson.yaml's model.cache_dir, so a restart
+      # doesn't re-download the checkpoint (or fail outright if the
+      # device happens to be offline at that moment).
+      - model-cache:/app/.cache/models
+    mem_limit: 6g
+    memswap_limit: 6g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s # first request loads + runs the CLIP checkpoint; give it real headroom
+      retries: 3
+
+volumes:
+  model-cache:

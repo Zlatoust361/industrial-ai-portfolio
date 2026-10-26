@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>vision_bridge</name>
+  <version>0.1.0</version>
+  <description>
+    Open-vocabulary vision detection bridge node: subscribes to an image
+    stream plus a text query (parameter and/or topic), publishes
+    DetectionResult/DetectionArray. Detection backend is pluggable
+    (auto/tensorrt/pytorch/stub, see detector_factory.py): OWL-ViT vision
+    tower via a TensorRT engine built on-device, falling back to eager
+    PyTorch when no usable engine is present. Runtime deps beyond this
+    package's own rosdep keys -- torch, transformers, and (Jetson-only)
+    tensorrt/pycuda -- are not pip-managed here; see ros2_ws/README.md.
+  </description>
+  <maintainer email="dev@example.com">vlm-course</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>vision_bridge_msgs</depend>
+  <depend>python3-numpy</depend>
+
+  <exec_depend>ros2launch</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

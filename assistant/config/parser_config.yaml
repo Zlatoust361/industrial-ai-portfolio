@@ -1,0 +1,40 @@
+# parser_config.yaml -- llm_parser.py's two-tier settings (week 11, day 2).
+#
+# Read by assistant/utils/config.py::load_parser_config. `rate_limit`
+# governs assistant/rate_limiter.py's TokenBucketRateLimiter +
+# ExternalCallQueue (the queue guarding llm_parser.py's external Claude
+# API calls); `claude_api` governs assistant/llm_parser.py::call_claude_api.
+
+rate_limit:
+  # Token bucket: at most this many external API calls per window_seconds,
+  # refilled continuously (not "reset every N seconds" -- avoids a burst
+  # right at each window boundary). Conservative default for a single
+  # device on a shared/metered industrial-line uplink -- an operator
+  # chatting rapidly shouldn't be able to run up API spend or saturate a
+  # limited connection.
+  max_calls_per_window: 10
+  window_seconds: 60.0
+  # How many API-tier requests may be queued waiting for a rate-limit
+  # token before new ones are rejected outright (QueueFullError) instead
+  # of piling up indefinitely -- a bounded backlog, not unbounded memory
+  # growth if the link degrades for an extended period.
+  max_queue_size: 20
+  # llm_parser.py's parse() waits at most this long for a queued external
+  # call to resolve before returning a "pending" result instead of
+  # blocking further -- the actual answer to this day's "не должно
+  # блокироваться на каждый чат-запрос" requirement. The chat UI (week 11
+  # day 4) can poll/re-ask, or just tell the operator "still working on
+  # it" rather than freezing.
+  max_wait_seconds: 5.0
+
+claude_api:
+  # claude-sonnet-5: this course's own reference model family for the
+  # cloud tier (see README.md's "Week 11" section for why NOT run locally
+  # on the Orin Nano -- same memory-budget reasoning as everywhere else
+  # in this repo, ADR-002).
+  model: claude-sonnet-5
+  # Real API key, never committed -- read from the environment at call
+  # time. This sandbox has none (see README.md); call_claude_api raises a
+  # clear RuntimeError naming this exact variable when it's unset.
+  api_key_env: ANTHROPIC_API_KEY
+  timeout_s: 15.0

@@ -1,0 +1,39 @@
+# captioning/config/config.yaml -- week 15 (VLM captioning/VQA on edge)
+
+model:
+  name: HuggingFaceTB/SmolVLM-256M-Instruct
+  type: vlm-captioning
+  precision: fp16
+  device: cpu
+  seed: 42
+  cache_dir: .cache/models
+
+# Additive on top of whatever the detector pipeline (weeks 03/04/09) is
+# already using on the SAME Jetson Orin Nano -- see captioning/README.md's
+# Jetson-reality note. Not summed automatically with the detector's own
+# budget here; this is this model's own share only.
+memory:
+  memory_budget_mb: 2048
+  device_total_mb: 8192
+
+prompting:
+  allowed_phrases:
+    - "scratch"
+    - "crack"
+    - "chip along an edge"
+    - "dent"
+    - "discoloration"
+    - "foreign material"
+  max_new_tokens: 40
+
+# on_defect_confirmed (default): caption only a confirmed defect, not
+# every frame -- see captioning/triggers.py. on_every_frame: caption
+# every verdict regardless -- documented alternative, not recommended on
+# an 8GB Jetson Orin Nano running a detector at the same time.
+trigger:
+  mode: on_defect_confirmed
+
+paths:
+  outputs_dir: outputs/captioning_demo
+  augmented_report_path: outputs/captioning_demo/augmented_verdicts.json
+  evaluation_report_path: outputs/captioning_demo/evaluation_report.json

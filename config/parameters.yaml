@@ -1,0 +1,47 @@
+# parameters.yaml -- domain randomization scene simulation (week 07).
+#
+# Read by src/domain_randomization/config.py::load_dr_parameters. One
+# rendered image per call to src/domain_randomization/scene.py::render_scene:
+# a synthetic (or real, if supplied) object cutout is placed on a
+# background and put through camera/light/material/noise transforms, each
+# sampled independently from the ranges below.
+#
+# `render_scene(..., rng=None)` (the `no_dr` branch) skips sampling
+# entirely and uses each range's midpoint instead -- one fixed, nominal
+# scene, no randomization. `render_scene(..., rng=<Generator>)` (`with_dr`)
+# samples every range uniformly. Same renderer, same config file, two
+# branches -- see scripts/render_dr_dataset.py --branch {no_dr,with_dr}.
+
+seed: 42
+
+canvas:
+  size: [512, 512] # [width, height]
+
+# Camera: where/how large/how rotated the object appears on the canvas.
+camera:
+  scale_range: [0.7, 1.3] # multiplies the object's native size
+  rotation_range_deg: [-15.0, 15.0] # in-plane rotation
+  translation_fraction: 0.12 # max center offset from canvas center, as a
+  # fraction of canvas size (both axes, sampled independently)
+
+# Light: global brightness/contrast/white-balance of the whole frame.
+light:
+  brightness_range: [0.7, 1.3] # multiplicative (PIL ImageEnhance.Brightness)
+  contrast_range: [0.8, 1.2] # multiplicative (PIL ImageEnhance.Contrast)
+  color_temperature_range: [-0.15, 0.15] # warm(-)/cool(+) R/B channel tint strength
+
+# Material: surface appearance of the object itself (not the background).
+material:
+  hue_shift_range_deg: [-10.0, 10.0]
+  saturation_range: [0.7, 1.3] # multiplicative
+
+# Noise: sensor-level degradation applied last, to the whole frame.
+noise:
+  gaussian_std_range: [0.0, 0.03] # additive gaussian noise std, as a fraction of [0, 255]
+  blur_radius_range: [0.0, 1.5] # gaussian blur sigma, px
+
+# Background: solid fill color the object is composited onto, when no real
+# background image is supplied (see scripts/render_dr_dataset.py).
+background:
+  color_low: [180, 180, 180]
+  color_high: [230, 230, 230]

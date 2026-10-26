@@ -1,0 +1,116 @@
+# quantization/config/config.yaml -- single config for the whole week 09
+# recipe: baseline (FP16) -> ONNX export -> calibration data -> INT4/INT8
+# TensorRT calibration -> engine build.
+#
+# `active_profile` / `profiles:` picks the TensorRT *builder* sizing used
+# by 04_quantize_model.py/05_build_engine.py (batch_size, workspace_size_mb,
+# fp16_fallback) -- see `orin_nano_8gb` below for the reasoning behind each
+# default. `--profile <name>` on those two scripts overrides `active_profile`
+# without editing this file.
+
+model:
+  name: "openai/clip-vit-base-patch32"
+  type: "clip"
+  precision: "fp16" # the week's own starting point: "baseline FP16 -> ... -> INT4"
+  device: "cpu" # dev-machine-friendly default for 01/02; profiles below govern the *engine build*'s device, not this
+  seed: 42
+  cache_dir: ".cache/models"
+
+memory:
+  # Same 6144/8192 MB pair every config in this repo has used since week 01
+  # (ADR-002) -- CLIPLoader.load() needs this to check the model fits
+  # before/after loading, same as everywhere else.
+  memory_budget_mb: 6144
+  device_total_mb: 8192
+
+paths:
+  outputs_dir: "outputs"
+  onnx_path: "outputs/onnx/image_encoder.onnx"
+  calibration_data_dir: "outputs/calibration_data"
+  calibration_cache_path: "outputs/calibration/int4_calibration.cache"
+  engine_path: "outputs/engine/image_encoder.engine" # quantized (quantization.bits), from 05_build_engine.py
+  fp16_engine_path: "outputs/engine/image_encoder_fp16.engine" # plain FP16, from 05_build_engine.py --fp16-only
+
+baseline:
+  image_size: 224
+  batch_sizes: [1, 4, 8]
+  warmup_iters: 10
+  num_iters: 50
+
+onnx:
+  opset: 17
+  dynamic_batch: true
+  atol: 0.001
+  rtol: 0.001
+
+calibration:
+  # Week 06's real, stratified val subset -- representative of the actual
+  # deployment distribution, not a random dev-set grab. Relative to this
+  # directory (quantization/), same convention as pipeline/'s
+  # `../config/prompts.yaml` reference.
+  source_dir: "../dataset_pipeline/outputs/yolo/val"
+  num_samples: 128
+  image_size: 224
+
+evaluation:
+  # Week 06's held-out TEST split -- deliberately different from
+  # calibration.source_dir's VAL split above: calibrating and evaluating
+  # on the same images would give an optimistic quality read. Used by
+  # 06_trt_inference.py (latency) and 07_evaluate_quality.py (INT4 vs
+  # FP16 embedding cosine similarity), both against the exact same,
+  # deterministically-ordered image set so the two scripts' numbers are
+  # comparable to each other.
+  test_set_dir: "../dataset_pipeline/outputs/yolo/test"
+  num_samples: 64 # keeps a comparison run bounded, real 24/7-scenario runs can raise this
+  warmup_iters: 10
+  num_iters: 50
+  min_cosine_similarity: 0.98 # 07's quality gate: INT4 embeddings must stay this close to FP16's
+  throttle_temp_c: 85.0 # 08's thermal-warning threshold -- same value/caveat as week 08's src/api/metrics.py::THROTTLE_TEMP_C
+
+quantization:
+  method: "ptq" # post-training quantization -- the only method this week implements
+  bits: 4 # target weight bit-width TensorRT's builder is asked for (4 or 8)
+  calibrator: "entropy" # TensorRT's IInt8EntropyCalibrator2 -- see 04_quantize_model.py's docstring
+  per_channel: true # per-output-channel scales, not one scale for the whole tensor
+
+active_profile: "orin_nano_8gb"
+
+profiles:
+  dev:
+    description: >
+      For exercising 04_quantize_model.py/05_build_engine.py's logic on a
+      dev machine with --force. NOT a deployable engine -- see
+      utils/environment.py's require_jetson gate. Workspace size assumes a
+      dev GPU with real headroom, not the Orin Nano's shared 8 GB.
+    device: "cuda"
+    batch_size: 1
+    workspace_size_mb: 4096
+    fp16_fallback: true
+
+  orin_nano_8gb:
+    description: >
+      Sane defaults for a real Jetson Orin Nano 8GB build -- a new engineer
+      shouldn't have to hand-tune these from scratch by trial and error.
+      batch_size=1: the Orin Nano's edge scenario is one video stream at a
+      time, nothing to batch (same reasoning as week 04/08's
+      device.batch_size=1 / mem_limit=6g defaults).
+      workspace_size_mb=1024: TensorRT's builder uses this as scratch space
+      for kernel autotuning during the build -- it comes out of the SAME
+      8 GB the OS, other services, and the model's own weights/activations
+      all share (Jetson has no separate VRAM, unlike a desktop GPU), so
+      grabbing "whatever's available" would risk starving everything else
+      running on the device *during the one-time build*, not just at
+      runtime. Kept well under the 6144 MB memory_budget_mb ceiling this
+      repo has used since week 01 (ADR-002) rather than maximizing it --
+      the builder doesn't need the whole budget to explore its kernel
+      search space, only room to try a few candidates at a time.
+      fp16_fallback=true: not every layer in a ViT/CLIP-style model has an
+      INT4 (or even INT8) TensorRT kernel implementation on Orin's Ampere
+      (sm_87) build -- letting the builder fall back to fp16 per-layer
+      instead of failing the whole build outright is standard TensorRT
+      practice, and is enabled by setting BOTH the low-bit builder flag AND
+      trt.BuilderFlag.FP16 (see 05_build_engine.py), not an either/or.
+    device: "cuda"
+    batch_size: 1
+    workspace_size_mb: 1024
+    fp16_fallback: true

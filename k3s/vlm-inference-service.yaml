@@ -1,0 +1,22 @@
+# k3s/vlm-inference-service.yaml -- exposes vlm-inference off the node.
+#
+# NodePort, not LoadBalancer: k3s's bundled LoadBalancer implementation
+# (ServiceLB/Klipper) is one of the components k3s/README.md recommends
+# disabling on a resource-constrained single-node pilot, and a
+# LoadBalancer Service's whole value proposition (a stable external IP
+# spread across many nodes) doesn't apply when there's exactly one node
+# anyway -- NodePort already gives a fixed, predictable port on that
+# node's own IP, which is all a single-device pilot needs.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vlm-inference
+  namespace: vlm-edge
+spec:
+  type: NodePort
+  selector:
+    app: vlm-inference
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30800 # matches docker-compose.jetson.yml's 8000:8000 in spirit (memorable, in the NodePort range)

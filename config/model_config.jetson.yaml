@@ -1,0 +1,63 @@
+# Jetson Orin Nano deployment config for src/api/app.py -- same schema as
+# model_config.yaml (dev default), only `model.precision`/`model.device`
+# differ. A separate standalone file, not a partial "override" of
+# model_config.yaml: src.config.load_config has no merge/inheritance
+# mechanism, and this repo already uses the same "one full config per
+# environment" shape for pipeline/config/{pipeline_config,demo_config}.yaml
+# (week 04). Selected via docker-compose.jetson.yml's `CONFIG_PATH` env
+# var (see src/api/dependencies.py::get_config) -- the built image is the
+# same for dev and Jetson, only the config path handed to it differs.
+#
+# `inference.batch_size` is intentionally left at the dev default: it's
+# only read by scripts/03_benchmark.py, scripts/jetson_benchmark.py and
+# scripts/train_linear_head.py, never by src/api/app.py -- the live
+# service's request bodies (one image, one video's sampled frames, one
+# RTSP sample) already determine batch size per call, nothing here
+# chunks them further.
+
+model:
+  name: "openai/clip-vit-base-patch32"
+  type: "clip"
+  precision: "fp16"       # the on-device Jetson path always runs fp16 (see src.config.apply_target_overrides)
+  device: "cuda"           # cpu | cuda -- real GPU inference, not apply_target_overrides's concern (precision only)
+  seed: 42
+  cache_dir: ".cache/models"
+  # Ships as "pytorch"/unset -- zero behavior change until someone explicitly opts
+  # in after validating week 9's INT4 engine on real Jetson hardware (see
+  # course/TECH-DEBT.md item C.2). Flip to "auto" (safe: falls back to pytorch if
+  # the engine is missing/fails to load) or "tensorrt" (hard requirement) and set
+  # engine_path once that validation is done -- see src.config.ModelSection's
+  # docstring and quantization/scripts/05_build_engine.py.
+  backend: "pytorch"
+  engine_path: ""
+
+inference:
+  batch_size: 8
+  image_size: 224
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+
+export:
+  onnx_opset: 17
+  onnx_output_path: "outputs/onnx/clip_image_encoder.onnx"
+  dynamic_batch: true
+  onnx_atol: 0.001
+  onnx_rtol: 0.001
+
+memory:
+  # Same 6144 MB budget as dev -- deliberately kept equal to
+  # docker-compose.jetson.yml's mem_limit (6g == 6144 MiB exactly), so a
+  # model that would already trip check_memory_budget()/
+  # check_process_memory() (src/models/memory.py) also can't silently
+  # exceed the container's own hard cgroup limit -- both guardrails agree
+  # on the same number instead of one being tighter for no documented reason.
+  memory_budget_mb: 6144
+  device_total_mb: 8192
+
+benchmark:
+  warmup_iters: 10
+  num_iters: 100
+  batch_sizes: [1, 4, 8]
+  output_dir: "outputs/benchmark"

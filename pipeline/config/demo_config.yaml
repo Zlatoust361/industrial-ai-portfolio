@@ -1,0 +1,47 @@
+# demo_config.yaml -- identical to pipeline_config.yaml except detect.backend:
+# stub. Used by run_all.sh's default invocation and CI: the `stub` backend
+# (see scripts/04_detect.py::StubDetector) needs no torch/transformers/
+# ultralytics or model weights, so this is what lets a fresh checkout run
+# the full 7-stage pipeline offline, with zero setup. NOT for production --
+# point --config at pipeline_config.yaml (or your own) with a real
+# clip/yolo backend and real data/raw/ for an actual inspection run.
+
+paths:
+  data_dir: data
+  outputs_dir: outputs
+  logs_dir: logs
+
+device:
+  target: dev
+  precision: fp32
+  batch_size: 8
+  torch_device: cpu
+  seed: 42
+  memory_budget_mb: 6144
+  device_total_mb: 8192
+
+ingest:
+  input_glob: "*.jpg"
+
+preprocess:
+  image_size: [224, 224]
+
+detect:
+  backend: stub # <-- the only difference from pipeline_config.yaml
+  clip_model_name: openai/clip-vit-base-patch32
+  clip_cache_dir: .cache
+  clip_prompt_style: basic
+  clip_prompts_path: ../config/prompts.yaml
+  yolo_model_path: yolov8n.pt
+  yolo_defect_classes: []
+  score_threshold: 0.5
+
+interpret:
+  defect_score_threshold: 0.5
+
+quality_gate:
+  green_max_defect_rate: 0.02
+  yellow_max_defect_rate: 0.10
+
+report:
+  title: "Inspection pipeline report (demo run -- stub backend, not real detection)"

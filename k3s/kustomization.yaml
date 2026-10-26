@@ -1,0 +1,27 @@
+# k3s/kustomization.yaml -- `kubectl apply -k k3s/` applies every
+# manifest in this directory as one unit. The `images:` list is what CI
+# actually overrides per-deploy (`kustomize edit set image
+# vlm-inference=ghcr.io/OWNER/REPO/vlm-inference:<git-sha>`, see
+# .github/workflows/jetson-cicd.yml's deploy job) -- every rollout
+# references an immutable, git-SHA-tagged image, so `kubectl rollout
+# undo` actually reverts to a genuinely different image, not the same
+# mutable `:latest` tag re-applied.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: vlm-edge
+
+resources:
+  - namespace.yaml
+  - vlm-inference-pvc.yaml
+  - vlm-inference-deployment.yaml
+  - vlm-inference-service.yaml
+  - chat-backend-pvc.yaml
+  - chat-backend-deployment.yaml
+  - chat-backend-service.yaml
+
+images:
+  - name: ghcr.io/OWNER/REPO/vlm-inference
+    newTag: latest
+  - name: ghcr.io/OWNER/REPO/chat-backend
+    newTag: latest

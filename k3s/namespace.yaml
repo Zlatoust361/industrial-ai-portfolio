@@ -1,0 +1,11 @@
+# k3s/namespace.yaml -- week 12 day 4.
+#
+# One namespace for this pilot's own workloads, kept separate from
+# `default` and from k3s's own `kube-system` (Traefik/servicelb/
+# metrics-server, if not disabled -- see k3s/README.md) so `kubectl get
+# pods -n vlm-edge` shows exactly this pilot's two services, nothing
+# k3s itself installed.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vlm-edge

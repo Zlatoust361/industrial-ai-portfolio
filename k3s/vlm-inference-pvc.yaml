@@ -1,0 +1,22 @@
+# k3s/vlm-inference-pvc.yaml -- persists downloaded CLIP weights across
+# pod recreation (mirrors docker-compose.jetson.yml's `model-cache`
+# named volume). `storageClassName: local-path` is k3s's own bundled
+# provisioner (Rancher's local-path-provisioner, enabled by default,
+# NOT one of the components k3s/README.md recommends disabling) --
+# correct and sufficient for a single-node pilot: it backs the PVC with
+# a real hostPath directory on that one node, no distributed storage
+# needed when there's only one node for the volume to ever be on.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vlm-inference-model-cache
+  namespace: vlm-edge
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      # CLIP ViT-B/32 checkpoint is well under 1 GiB; generous headroom
+      # for a future larger model without needing to resize.
+      storage: 2Gi

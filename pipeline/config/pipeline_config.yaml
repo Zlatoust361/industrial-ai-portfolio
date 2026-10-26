@@ -1,0 +1,63 @@
+# pipeline_config.yaml -- week 04 inspection pipeline config.
+#
+# Read exclusively through utils/config.py -- no stage script hardcodes a
+# path, threshold, or model name. Paths are relative to wherever the
+# pipeline is invoked from (see pipeline/README.md: run stages from
+# pipeline/ with PYTHONPATH=.).
+
+paths:
+  data_dir: data
+  outputs_dir: outputs
+  logs_dir: logs
+
+# device.target is the single switch the whole pipeline reads to know
+# whether it's running on a dev machine or the Jetson Orin Nano.
+# utils.config.apply_device_target(config, "jetson") forces precision to
+# fp16 and batch_size to 1 (see week 01's config/model_config.yaml /
+# src/config.py::apply_target_overrides for the same pattern, and
+# course/DECISIONS.md ADR-002 for why 6144 MB is the default budget on an
+# 8192 MB Orin Nano). 01_environment_check.py detects the real device but
+# does NOT itself decide the target -- that's an explicit --device flag on
+# 04_detect.py (the only stage that actually runs model inference; see
+# run_all.sh/Makefile's `pipeline-jetson` target), so a dev machine can
+# still deliberately dry-run the jetson profile.
+device:
+  target: dev # dev | jetson
+  precision: fp32 # fp32 | fp16 -- forced to fp16 when target=jetson
+  batch_size: 8 # forced to 1 when target=jetson (Orin Nano: one video stream)
+  torch_device: cpu # cpu | cuda -- passed straight to CLIPLoader's ModelSection.device
+  seed: 42
+  memory_budget_mb: 6144 # same default as week 01, 8 GB Orin Nano minus ~2 GB for the OS
+  device_total_mb: 8192
+
+ingest:
+  input_glob: "*.jpg"
+  # resolved against <data_dir>/raw/; see 02_ingest.py
+
+preprocess:
+  image_size: [224, 224]
+  # CLIP's own processor is authoritative at inference time (see
+  # 04_detect.py) -- this resize is only so data/processed/ holds a
+  # consistent, inspectable artifact of what each stage actually saw.
+
+detect:
+  backend: clip # clip | yolo | stub (stub is for run_all.sh's demo run / CI, see 04_detect.py)
+  clip_model_name: openai/clip-vit-base-patch32
+  clip_cache_dir: .cache
+  clip_prompt_style: basic # basic | industrial | detailed
+  clip_prompts_path: ../config/prompts.yaml # week 02's prompts.yaml, one level up from pipeline/
+  yolo_model_path: yolov8n.pt
+  yolo_defect_classes: [] # empty -- see 04_detect.py's yolo backend docstring
+  score_threshold: 0.5
+
+interpret:
+  defect_score_threshold: 0.5
+  # a detection scoring >= this on the "defect" class/prompt counts as a defect
+
+quality_gate:
+  green_max_defect_rate: 0.02
+  yellow_max_defect_rate: 0.10
+  # defect_rate < green -> GREEN; < yellow -> YELLOW; otherwise RED
+
+report:
+  title: "Inspection pipeline report"

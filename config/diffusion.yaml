@@ -1,0 +1,79 @@
+# diffusion.yaml -- inpainting + quality-gate config (week 05, day 3).
+#
+# Read by src/synthetic/diffusion_config.py::load_diffusion_config. Backends
+# are chosen by name (`backend:` below); `src/synthetic/diffusion_pipeline.py`'s
+# `build_backend()` maps the name to a concrete implementation. See
+# README.md's "Week 05" section for which backend to use where -- in short:
+# `cv2` for CI/local dev/this sandbox (no GPU/network needed, real classical
+# inpainting, not diffusion), `diffusers` for a real Stable Diffusion run on
+# a dev GPU, `stability_api` for a real Stable Diffusion run with no local
+# GPU at all. NEVER `diffusers` on a Jetson Orin Nano -- see README.md.
+
+backend: cv2
+
+# Shared text prompt for the diffusers/stability_api backends (ignored by
+# `cv2`, which has no text conditioning). Written for the same industrial
+# surface-defect domain config/defects.yaml's shapes target.
+prompt:
+  positive: >
+    a close-up photo of a worn metal industrial part surface with a
+    realistic scratch or corrosion pit, matching the surrounding texture,
+    lighting, and material, photorealistic, high detail
+  negative: >
+    cartoon, drawing, painting, text, watermark, blurry, low quality,
+    unrealistic, out of frame, extra objects
+
+# cv2: OpenCV's classical (non-diffusion) inpainting -- src/synthetic/diffusion_pipeline.py::Cv2InpaintBackend.
+# The only backend this sandbox can actually run (no torch/diffusers/GPU/network
+# needed) -- used for CI, local dev, and demoing the rest of this pipeline
+# (quality_assessment, top-75% selection) for real. NOT what day 3 is
+# actually asking for (that's diffusion inpainting) -- see README.md.
+cv2:
+  method: telea # telea | ns -- OpenCV's two inpainting algorithms (cv2.INPAINT_TELEA / cv2.INPAINT_NS)
+  radius: 3 # px, neighborhood radius cv2.inpaint considers per pixel
+
+# diffusers: local Stable Diffusion inpainting via HuggingFace `diffusers`
+# -- src/synthetic/diffusion_pipeline.py::DiffusersInpaintBackend. Needs
+# `pip install torch diffusers accelerate` on a CUDA dev machine (not in
+# requirements.txt -- see README.md for why). Refuses to run without a
+# real CUDA device (see the backend's own docstring).
+diffusers:
+  model_id: runwayml/stable-diffusion-inpainting
+  device: cuda
+  num_inference_steps: 30
+  guidance_scale: 7.5
+  # Reproducibility: same seed -> same generation for a given prompt/mask/image,
+  # useful for iterating on defects.yaml/prompt wording without also
+  # re-rolling the diffusion noise every run.
+  seed: 42
+
+# stability_api: Stability AI's REST inpainting API -- src/synthetic/diffusion_pipeline.py::StabilityAPIBackend.
+# Needs `pip install httpx` (not in requirements.txt -- optional dependency,
+# see README.md) and a real API key in the `api_key_env` environment
+# variable. Never available in this sandbox (no key, and this session
+# doesn't have standing authorization to spend a real API budget on the
+# user's behalf) -- written correctly, exercised only via a mocked HTTP
+# transport in tests.
+stability_api:
+  endpoint: https://api.stability.ai/v2beta/stable-image/edit/inpaint
+  api_key_env: STABILITY_API_KEY
+  output_format: png
+  timeout_s: 60.0
+
+# quality_gate: src/synthetic/quality_assessment.py -- how the 4 metrics
+# combine into one ranking score, and what fraction of results survive.
+quality_gate:
+  keep_fraction: 0.75 # "лучших 75%" -- the day's own literal ask
+  # Each metric is min-max normalized across one run's batch before
+  # weighting (see quality_assessment.py::normalize_min_max) -- these
+  # weights are relative, not absolute thresholds, and don't need to sum
+  # to 1 (normalized at combine time). ssim_outside_mask weighted highest:
+  # it's the most robust single signal that the backend left everything
+  # outside the mask alone, the most basic thing an inpainting backend
+  # must get right before "does the defect look realistic" even matters.
+  weights:
+    psnr_outside_mask: 0.20
+    ssim_outside_mask: 0.35
+    blur_inside_mask: 0.25
+    contrast_inside_mask: 0.20
+  ssim_window: 7 # px, uniform-window size for the simplified SSIM implementation (see quality_assessment.py)

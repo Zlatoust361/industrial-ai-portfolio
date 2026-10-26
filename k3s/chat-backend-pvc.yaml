@@ -1,0 +1,18 @@
+# k3s/chat-backend-pvc.yaml -- persists the SQLite detection history
+# (assistant/database.py, week 11 day 4) across pod recreation. Same
+# local-path StorageClass reasoning as vlm-inference-pvc.yaml.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chat-backend-data
+  namespace: vlm-edge
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      # A SQLite file of detection rows -- week 11 day 4's own real
+      # measurement used 2000 rows at ~140 KB; generous headroom for a
+      # multi-month operational history.
+      storage: 1Gi

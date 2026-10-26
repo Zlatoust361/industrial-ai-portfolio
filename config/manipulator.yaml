@@ -1,0 +1,69 @@
+# config/manipulator.yaml -- SO-ARM 101 control interface (week 12, day 3).
+#
+# `simulate: true` (this file's default, the `dev` environment) runs a
+# real in-memory arm-state simulator -- no serial port needed. Real
+# hardware (`prod`/`jetson`, from a physical SO-ARM 101 in a home lab)
+# needs `simulate: false` -- see src/robot/manipulator.py's own docstring
+# for exactly what's been verified about the protocol below and what
+# hasn't (this sandbox has no serial port and no physical arm).
+manipulator:
+  simulate: true
+  # Real motion requires BOTH simulate: false AND enabled: true --
+  # mirrors opc_ua_bridge.py's read_only/allow_write double opt-in
+  # (ADR-043): a deployment must explicitly arm the manipulator, moving a
+  # real 6-DOF arm is not something a default config should ever do.
+  enabled: false
+
+  # Real hardware connection. SO-ARM 101's 6 Feetech STS3215 servos
+  # daisy-chain on ONE USB-serial bus (LeRobot's own docs: "All 6 servos
+  # daisy-chain on a single 3 Mbps USB serial bus"; typical Linux device
+  # node is /dev/ttyACM0, or /dev/ttyUSB0 for a CH340-based adapter).
+  port: "/dev/ttyACM0"
+  # 1,000,000 baud -- LeRobot's own documented default for the Feetech
+  # STS3215 bus on SO-100/SO-101 (distinct from the "3 Mbps" figure
+  # describing the USB link itself, not the servo bus baud rate).
+  baud_rate: 1000000
+
+  # Servo ID per joint -- matches LeRobot's own published SO-101 motor
+  # config (shoulder_pan=1 ... gripper=6), verified against LeRobot's
+  # own documentation, not guessed.
+  servo_ids:
+    shoulder_pan: 1
+    shoulder_lift: 2
+    elbow_flex: 3
+    wrist_flex: 4
+    wrist_roll: 5
+    gripper: 6
+
+  # Feetech SCServo (protocol 0) control-table addresses. These are the
+  # addresses commonly published for the STS/SMS servo series (e.g.
+  # Feetech's own SCServo_Python SDK's SMS_STS memory map) -- NOT
+  # independently re-verified against a physical SO-ARM 101's firmware
+  # in this sandbox (no serial port, no device). Confirm against the
+  # exact unit's control table before a first real run; override here if
+  # different.
+  register_map:
+    torque_enable: 40
+    goal_position: 42
+    present_position: 56
+
+  # STS3215: 12-bit position resolution (0-4095 steps).
+  position_min: 0
+  position_max: 4095
+
+  # Mid-range on every joint -- a safe, arm-folded-ish default absent a
+  # real calibration; a real deployment should replace this with the
+  # unit's own calibrated home pose.
+  home_position:
+    shoulder_pan: 2048
+    shoulder_lift: 2048
+    elbow_flex: 2048
+    wrist_flex: 2048
+    wrist_roll: 2048
+    gripper: 2048
+
+  # How long write_positions()/move_to() waits for one motion to settle
+  # (this repo doesn't have a real "motion complete" feedback loop yet --
+  # see the module docstring's honesty note) and the real backend's
+  # serial read timeout.
+  move_timeout_s: 5.0

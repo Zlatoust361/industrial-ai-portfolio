@@ -1,0 +1,75 @@
+# bridges_config.yaml -- action_executor.py's three domain bridges (week 11, day 3).
+#
+# Read by assistant/utils/config.py::load_bridges_config. Kept separate
+# from parser_config.yaml (day 2): that file is llm_parser.py's own
+# concern (rate limiting + the Claude API), this one is action_executor.py's
+# -- three unrelated domains (vision/robotics/OT) that happen to be
+# configured together only because they're all "the systems
+# action_executor.py dispatches to," not because their settings interact.
+
+vision_bridge:
+  # The ALREADY-DEPLOYED FastAPI service (week 08's src/api/app.py,
+  # docker-compose.jetson.yml maps 8000:8000) -- vision_bridge.py calls
+  # into it over HTTP rather than loading a second copy of CLIP in this
+  # process. See README.md's "Week 11" section for why that's the point,
+  # not an implementation shortcut (an 8 GB Jetson has no room for two
+  # copies of the same model, ADR-002).
+  base_url: http://localhost:8000
+  timeout_s: 10.0
+  # config/prompts.yaml's style used for classify_defect()'s ok-vs-defect
+  # reference phrases (week 02) -- "industrial" phrasing, matching this
+  # repo's actual deployment domain.
+  prompt_style: industrial
+  # ros2_ws/src/vision_bridge/vision_bridge/detector_factory.py's own
+  # BACKENDS -- see that module's docstring for what each means.
+  # "auto" is the real production default; tests override to "stub".
+  detector_backend: auto
+  detector_model_name: google/owlvit-base-patch32
+  detector_score_threshold: 0.1
+  # TECH-DEBT.md C.3 / DECISIONS.md ADR (see "Обновление" note on C.3):
+  # this backend selection is real, but `detect_objects` itself is never
+  # called by any current caller -- src/scenarios/color_sorting.py and
+  # defect_detection.py (week 12), and chat_app.py's own vision calls,
+  # all use `classify_by_prompts` (whole-frame classification) instead.
+  # That's a deliberate decision, not an oversight: no current scenario
+  # needs "where in the frame is it," only "what is this frame/bin."
+  # Revisit ONLY if a future scenario needs per-object localization
+  # within a multi-object frame (e.g. picking one specific defective item
+  # out of a cluttered bin, rather than accepting/rejecting one presented
+  # item) -- that is the concrete trigger to wire `detect_objects` into
+  # a scenario, not a general "use more of what we built" impulse.
+
+ros_interface:
+  # Real topic names, matching ros2_ws/src/vision_bridge's own launch
+  # file defaults (week 03) -- same names, so a real deployment's
+  # vision_bridge ROS2 node and this bridge agree on what they're
+  # publishing/subscribing without either side needing reconfiguring.
+  text_query_topic: /vision_bridge/text_query
+  detections_topic: /vision_bridge/detections
+  # No real ROS2 topic exists for this in the repo today (week 07/09's
+  # training scripts are offline CLI batch jobs, not a live service) --
+  # this is where a real training-orchestration node would listen.
+  training_control_topic: /assistant/training_control
+  node_name: assistant_bridge
+  # Real rclpy isn't installed in the dev sandbox this was written in
+  # (see README.md) -- simulate=true runs an in-memory pub/sub bus
+  # instead of touching rclpy at all, for CI/dev/testing.
+  simulate: true
+
+opc_ua_bridge:
+  # Deliberately a stub for week 11 -- see
+  # course/modules/ot-integration-for-cv-engineer/day04-plc-scada-integration-kks.md,
+  # which explicitly defers real KKS tagging / a real-or-simulated PLC /
+  # OPC-UA-vs-Modbus tradeoffs to that later, dedicated module. This
+  # config exists so the shape is right when that work happens, not
+  # because week 11 needs a real PLC.
+  endpoint: opc.tcp://localhost:4840/freeopcua/server/
+  # Placeholder KKS-style tag namespace -- see the OT-integration module
+  # above for what a real tag scheme looks like. NOT a real PLC's actual
+  # tag layout.
+  namespace: ns=2;s=Line1.Assistant
+  # Read-only by default -- writing to a PLC is a safety-relevant action;
+  # action_executor.py's callers must pass an explicit allow-list to
+  # write anything (see OPCUABridge.write_tag's docstring).
+  read_only: true
+  simulate: true

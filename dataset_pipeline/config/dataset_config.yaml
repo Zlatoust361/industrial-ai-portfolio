@@ -1,0 +1,65 @@
+# dataset_config.yaml -- single source of truth for scripts/01_generate_synthetic.py
+# ... scripts/08_validate_dataset.py (week 06). Every stage reads
+# its paths/parameters through utils/config.py::load_config -- no
+# hardcoded path/threshold in any of the 8 scripts.
+
+paths:
+  data_dir: "data" # images/, manifest.json (relative to invocation cwd, i.e. dataset_pipeline/)
+  outputs_dir: "outputs" # coco/, yolo/, jetson_val_subset/, metrics/
+
+# Stage 1: synthetic scene generation. Reuses week 07's DR scene renderer
+# (src.domain_randomization.scene.render_scene) and week 05's parametric
+# defect-mask generator (src.synthetic.mask_generation.generate_defect_mask)
+# directly -- real Stable Diffusion inpainting (week 05 days 3-5) was never
+# implemented (needs torch/diffusers + GPU, unavailable in this sandbox),
+# so a "defect" sample here is a DR-rendered scene with a generated defect
+# shape blended visibly onto it, not a photorealistic inpaint.
+generation:
+  count: 60 # total samples to generate
+  defect_fraction: 0.5 # P(sample is labeled "defect")
+  object_class_name: "part"
+  defect_class_name: "defect"
+  defect_overlay_color: [200, 40, 40] # blended onto the frame where the defect mask is set
+  defect_overlay_alpha: 0.55
+  object_pool_size: 4 # distinct synthesized placeholder object cutouts to cycle through
+  seed: 42
+  dr_parameters_path: "../config/parameters.yaml" # week 07's DR config, reused as-is
+  defects_config_path: "../config/defects.yaml" # week 05's defect-shape config, reused as-is
+  diffusion_config_path: "../config/diffusion.yaml" # week 05's inpainting/quality-gate config, reused as-is -- only read by `--source diffusion` (see README.md's "Two synthetic-data sources" section)
+
+# Stage 2: stratification -- discretizes each sample's actual DR render
+# parameters (not the config ranges) into brightness/angle/background
+# buckets, joined with the ok/defect label into one `stratum` string that
+# stages 6/7 sample from. Also logs marginal (per-axis) distributions +
+# balance ratios to outputs/metrics/stratify_distribution.json (day 4).
+stratify:
+  brightness_low_max: 0.9 # light.brightness < this -> "low"
+  brightness_high_min: 1.1 # light.brightness >= this -> "high" (between -> "mid")
+  rotation_left_max_deg: -5.0 # camera.rotation_deg < this -> "left"
+  rotation_right_min_deg: 5.0 # camera.rotation_deg >= this -> "right" (between -> "center")
+  background_dark_max_mean: 200.0 # mean(background_color) < this -> "dark" (else "light")
+  balance_warn_ratio: 0.3 # log a warning when an axis's min/max bucket count ratio drops below this
+
+# Stage 3: augmentation -- adds a flipped/jittered variant for a fraction
+# of base (non-augmented) samples, tagged as belonging to the same stratum
+# and inheriting the source sample's eventual split (see stage 6) so an
+# augmented twin of a train image can never leak into val/test.
+augment:
+  augment_fraction: 0.3 # fraction of stage-1 samples to also produce an augmented variant for
+  seed: 43
+
+# Stage 6: stratified train/val/test split. Fractions must sum to 1.0.
+split:
+  train_fraction: 0.7
+  val_fraction: 0.15
+  test_fraction: 0.15
+  seed: 44
+
+# Stage 7: compact stratified val-only subset for Jetson Orin Nano
+# profiling -- 200-300 images (hundreds of MB, not the whole dataset,
+# since NVMe/microSD on-device storage is limited).
+jetson_subset:
+  min_count: 200
+  target_count: 250
+  max_count: 300
+  seed: 45

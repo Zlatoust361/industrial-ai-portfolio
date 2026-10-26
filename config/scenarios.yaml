@@ -1,0 +1,79 @@
+# config/scenarios.yaml -- color_sorting.py / defect_detection.py (week 12, day 3).
+#
+# Each scenario has its own `camera:` sub-section with a `dev` and a
+# `jetson` entry -- the "конфиг на окружения (dev/prod=jetson)" this
+# day's task explicitly asks for. `dev` uses a deterministic synthetic
+# frame generator (no camera needed, same convention weeks 01-09 already
+# use for demos in this sandbox); `jetson` names a real camera/RTSP
+# source `src.data.video.open_video_capture` opens for real on-device.
+# Every joint position below (pick/bin/reject positions) is a
+# placeholder, arbitrary-but-distinct raw servo value (0-4095) -- NOT a
+# calibrated position for any real object/bin layout, same honesty note
+# as `config/manipulator.yaml`'s `home_position`.
+
+color_sorting:
+  colors: ["red", "green", "blue", "yellow"]
+  margin_threshold: 0.02
+  pick_position:
+    shoulder_pan: 2048
+    shoulder_lift: 2800
+    elbow_flex: 1200
+    wrist_flex: 2048
+    wrist_roll: 2048
+    gripper: 4095
+  bin_positions:
+    red:
+      shoulder_pan: 1000
+      shoulder_lift: 2400
+      elbow_flex: 1600
+      wrist_flex: 2048
+      wrist_roll: 2048
+      gripper: 0
+    green:
+      shoulder_pan: 2048
+      shoulder_lift: 2400
+      elbow_flex: 1600
+      wrist_flex: 2048
+      wrist_roll: 2048
+      gripper: 0
+    blue:
+      shoulder_pan: 3000
+      shoulder_lift: 2400
+      elbow_flex: 1600
+      wrist_flex: 2048
+      wrist_roll: 2048
+      gripper: 0
+    yellow:
+      shoulder_pan: 3800
+      shoulder_lift: 2400
+      elbow_flex: 1600
+      wrist_flex: 2048
+      wrist_roll: 2048
+      gripper: 0
+  camera:
+    dev:
+      source: "synthetic"
+    jetson:
+      source: "/dev/video0"
+
+defect_detection:
+  margin_threshold: 0.02
+  reject_position:
+    shoulder_pan: 500
+    shoulder_lift: 2400
+    elbow_flex: 1600
+    wrist_flex: 2048
+    wrist_roll: 2048
+    gripper: 0
+  pick_position:
+    shoulder_pan: 2048
+    shoulder_lift: 2800
+    elbow_flex: 1200
+    wrist_flex: 2048
+    wrist_roll: 2048
+    gripper: 4095
+  camera:
+    dev:
+      source: "synthetic"
+    jetson:
+      source: "/dev/video0"

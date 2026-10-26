@@ -1,0 +1,43 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch>=2.2
+transformers>=4.40
+pillow>=10.0
+# Pinned <2, not just >=1.26: confirmed on a real Jetson Orin Nano
+# (aarch64) that opencv-python-headless's compiled extension there is
+# still built against NumPy 1.x even on a version (4.12.0.88) whose own
+# metadata claims `numpy>=2,<2.3` -- importing cv2 under numpy 2.2.6
+# failed with `AttributeError: _ARRAY_API not found` /
+# `ImportError: numpy.core.multiarray failed to import`, and numpy's own
+# error text names `numpy<2` as the fix. Affects this whole shared venv
+# (opencv-python-headless below is used by week 07's YOLO training/eval
+# path), not just one script, so the pin lives here, not in a single
+# week's own override.
+numpy>=1.26,<2
+pyyaml>=6.0
+psutil>=5.9
+pydantic>=2.6
+fastapi>=0.110
+uvicorn[standard]>=0.29
+onnx>=1.16
+onnxruntime>=1.17
+# torch's ONNX exporter now routes through its dynamo-based backend by
+# default (confirmed on torch 2.14) and imports onnxscript unconditionally
+# as part of that path -- `torch.onnx.export()` fails with
+# `ModuleNotFoundError: No module named 'onnxscript'` without it, even for
+# this repo's plain single-encoder export (scripts/02_convert_onnx.py).
+onnxscript>=0.1
+scikit-learn>=1.4
+scipy>=1.11
+matplotlib>=3.8
+opencv-python-headless>=4.9
+python-multipart>=0.0.9
+# Week 07's train_dr_yolo.py/export_and_compare_jetson.py/compare_dr_branches.py
+# (and the src/evaluation/{detection_metrics,statistics,yolo_inference}.py
+# they import) need this for real YOLOv8 training/inference -- confirmed
+# missing on a real Jetson Orin Nano run: `pip install -r requirements.txt`
+# followed by `python scripts/train_dr_yolo.py` failed with
+# `ModuleNotFoundError: No module named 'ultralytics'` despite this being
+# the exact documented install command (course/weeks/week07-.../MANUAL-RUN.md
+# had assumed this line already existed here; it didn't).
+ultralytics>=8.2

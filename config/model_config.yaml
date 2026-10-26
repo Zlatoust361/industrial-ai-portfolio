@@ -1,0 +1,54 @@
+# Application config for the VLMLoader / VLMInference pattern.
+# All modules read this file through `src.config.load_config` -- no
+# hardcoded model names, paths, or hyperparameters in the source tree.
+
+model:
+  name: "openai/clip-vit-base-patch32"
+  type: "clip"
+  precision: "fp32"       # fp16 | fp32
+  device: "cpu"            # cpu | cuda
+  seed: 42
+  cache_dir: ".cache/models"
+  # backend selects the VLMInference implementation src.models.factory.build_inference
+  # builds: "pytorch" (default, this file's previous/only behavior, unchanged) |
+  # "tensorrt" (require a working engine_path, raise if unavailable) | "auto" (try
+  # tensorrt if engine_path is set and exists, fall back to pytorch on any load
+  # failure). See src.config.ModelSection's docstring.
+  backend: "pytorch"
+  # Path to week 9's INT4/INT8-quantized image-encoder .engine (built on-device by
+  # quantization/scripts/05_build_engine.py). Unset/empty means no engine is
+  # configured -- backend: auto then always falls back to pytorch. Ignored when
+  # backend: pytorch.
+  engine_path: ""
+
+inference:
+  batch_size: 8
+  image_size: 224
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+
+export:
+  onnx_opset: 17
+  onnx_output_path: "outputs/onnx/clip_image_encoder.onnx"
+  # Batch axis is marked dynamic on the exported graph, but the export trace
+  # and the PyTorch-vs-ONNXRuntime smoke test always use batch=1: the Orin
+  # Nano reads a single video stream, so batching has no real edge scenario.
+  dynamic_batch: true
+  onnx_atol: 0.001
+  onnx_rtol: 0.001
+
+memory:
+  # Budget for model weights + inference runtime working set (activations,
+  # CUDA/TensorRT context, ...). Sized for an 8 GB Jetson Orin Nano, leaving
+  # ~2 GB of headroom for the OS and other processes so a too-big model
+  # fails with a clear error instead of triggering the kernel OOM-killer.
+  memory_budget_mb: 6144
+  device_total_mb: 8192
+
+benchmark:
+  warmup_iters: 10
+  num_iters: 100
+  batch_sizes: [1, 4, 8]
+  output_dir: "outputs/benchmark"

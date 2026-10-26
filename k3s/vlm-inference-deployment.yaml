@@ -1,0 +1,103 @@
+# k3s/vlm-inference-deployment.yaml -- src/api/app.py (week 08), on k3s
+# instead of docker-compose.jetson.yml (week 08 day 3, still valid for a
+# direct-SSH deploy -- this is an additional path, not a replacement).
+#
+# `replicas: 1` + `strategy: Recreate` (NOT the Deployment default
+# RollingUpdate) is the single most important edge-specific choice here:
+# this pilot has exactly one Jetson Orin Nano (day 4's own "без
+# предположения о кластере из многих узлов" constraint) with 8 GiB total
+# RAM, and this container alone requests/limits 6144Mi (mirrors
+# docker-compose.jetson.yml's `mem_limit: 6g` exactly, ADR-002). A
+# RollingUpdate's default maxSurge briefly schedules the NEW pod
+# alongside the OLD one before terminating the old one -- on this device
+# that means trying to fit ~12 GiB of inference containers into 8 GiB at
+# once, which does not degrade gracefully, it OOMs. Recreate terminates
+# the old pod fully before starting the new one -- a few seconds of
+# downtime on every deploy, on purpose, in exchange for never
+# double-booking memory this device doesn't have.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vlm-inference
+  namespace: vlm-edge
+  labels:
+    app: vlm-inference
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5 # keeps 5 old ReplicaSets around for `kubectl rollout undo`
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vlm-inference
+  template:
+    metadata:
+      labels:
+        app: vlm-inference
+    spec:
+      # Requires the device's k3s to have an `nvidia` RuntimeClass
+      # configured (containerd's nvidia-container-runtime, the k3s
+      # equivalent of docker-compose.jetson.yml's `runtime: nvidia`) --
+      # standard NVIDIA Jetson + k3s integration, set up once on the
+      # device outside these manifests, NOT verified in this sandbox (no
+      # k3s, no physical device -- see k3s/README.md's honesty note).
+      runtimeClassName: nvidia
+      containers:
+        - name: vlm-inference
+          # Placeholder tag -- CI overrides this per-deploy via
+          # `kustomize edit set image` (see k3s/kustomization.yaml and
+          # .github/workflows/jetson-cicd.yml's deploy job) so every
+          # rollout/rollback references an immutable, git-SHA-tagged
+          # image, never a mutable `:latest`.
+          image: ghcr.io/OWNER/REPO/vlm-inference:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CONFIG_PATH
+              value: config/model_config.jetson.yaml
+            - name: LOG_LEVEL
+              value: INFO
+          resources:
+            requests:
+              memory: "6144Mi"
+              cpu: "500m"
+            limits:
+              memory: "6144Mi"
+              # No CPU limit -- CFS-throttling a latency-sensitive inference
+              # process is a worse failure mode than letting it burst, same
+              # reasoning docker-compose.jetson.yml's own comment gives for
+              # never letting this container swap.
+          volumeMounts:
+            - name: model-cache
+              mountPath: /app/.cache/models
+          # startupProbe, not a long initialDelaySeconds on the probes
+          # below: this is the correct primitive for a slow-starting
+          # container (first request loads + runs the CLIP checkpoint --
+          # docker-compose.jetson.yml's healthcheck gave this 90s via
+          # start_period; 24*5s = 120s here, a little more headroom).
+          # liveness/readiness only start counting failures once
+          # startupProbe has succeeded once.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: vlm-inference-model-cache

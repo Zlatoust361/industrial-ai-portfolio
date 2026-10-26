@@ -1,0 +1,91 @@
+# k3s/chat-backend-deployment.yaml -- assistant/chat_app.py (week 11 day
+# 4), Dockerfile.chat.jetson (week 12 day 4).
+#
+# Recreate strategy for the same reason as vlm-inference-deployment.yaml
+# (single node, no spare memory for a surging replica during rollout) --
+# this container's own footprint is small (week 11 day 4's real
+# measurement: ~64 MB RSS), but Recreate is the correct default for
+# EVERY workload on this single-node pilot, not just the memory-heavy
+# one: RollingUpdate's real benefit (zero-downtime via a second node
+# absorbing traffic while the first updates) doesn't exist when there is
+# only one node in the first place.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-backend
+  namespace: vlm-edge
+  labels:
+    app: chat-backend
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: chat-backend
+  template:
+    metadata:
+      labels:
+        app: chat-backend
+    spec:
+      containers:
+        - name: chat-backend
+          # Placeholder tag -- overridden by CI, same as vlm-inference's.
+          image: ghcr.io/OWNER/REPO/chat-backend:latest
+          ports:
+            - containerPort: 8100
+          env:
+            - name: ASSISTANT_DB_PATH
+              value: /app/data/detections.db
+            - name: LOG_LEVEL
+              value: INFO
+            # VisionBridge's own default base_url
+            # (assistant/config/bridges_config.yaml) is
+            # http://localhost:8000 -- correct for docker-compose (same
+            # host network) but wrong on k3s, where vlm-inference is a
+            # separate Pod reached only via its Service's in-cluster DNS
+            # name. load_bridges_config() (assistant/utils/config.py)
+            # resolves this env var over the YAML default for exactly
+            # this case.
+            - name: VLM_INFERENCE_URL
+              value: http://vlm-inference.vlm-edge.svc.cluster.local:8000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              # ~64 MB measured (week 11 day 4) + real headroom for
+              # SQLite growth and burst load -- 4x the measured figure,
+              # the same "measure real, budget generous" pattern
+              # docs/architecture.md's memory table already uses.
+              memory: "256Mi"
+          volumeMounts:
+            - name: chat-data
+              mountPath: /app/data
+          # No model to load -- Dockerfile.chat.jetson's own healthcheck
+          # already only gives this 10s start_period, mirrored here.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8100
+            periodSeconds: 2
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8100
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8100
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: chat-data
+          persistentVolumeClaim:
+            claimName: chat-backend-data

@@ -1,0 +1,74 @@
+# Dockerfile.jetson -- production image for the VLM inference API
+# (src/api/app.py) on a real Jetson Orin Nano running JetPack 6 / L4T r36.x.
+#
+# Base image: nvcr.io/nvidia/l4t-pytorch, NVIDIA's own NGC image for this
+# L4T release, PyTorch already built against Jetson's CUDA/cuDNN/TensorRT.
+# Plain `pip install torch` has no aarch64+CUDA wheel on PyPI at all (see
+# requirements-jetson.txt) -- this is the one dependency this image cannot
+# get from pip, so it has to come from the base image instead. The L4T tag
+# below (r36.2.0, JetPack 6.0) MUST match the device's actually-flashed L4T
+# version -- same hard constraint as week 03's TensorRT `.engine` files
+# (ros2_ws/scripts/convert_owlvit_tensorrt.py) and week 07's
+# scripts/export_and_compare_jetson.py: an image built for the wrong L4T
+# release does not run, it is not a "slower" fallback. Check
+# `cat /etc/nv_tegra_release` on the device and the current tag list at
+# https://catalog.ngc.nvidia.com/orgs/nvidia/containers/l4t-pytorch before
+# building for real -- this repo cannot verify that match from a dev
+# sandbox with no physical device attached.
+#
+# `docker login nvcr.io` REQUIRED before building, even though this image
+# is listed in NGC's public catalog -- confirmed on a real Jetson Orin
+# Nano (ADR-056 in course/DECISIONS.md): anonymous pull/HEAD against many
+# nvcr.io/l4t-* tags returns 403 Forbidden, not 401 Unauthorized, which
+# looks identical to a blocked registry but isn't one. Free NGC account ->
+# generate an API Key -> `docker login nvcr.io` with username `$oauthtoken`
+# (literal string) and the API Key as the password -- then this FROM
+# resolves.
+#
+# Multi-stage: `pip install --prefix=/install` in the `builder` stage
+# installs this image's own Python deps into an isolated directory tree
+# (not the base image's site-packages) so the final stage's `COPY
+# --from=builder` picks up exactly those packages and none of pip's
+# build/download cache, apt lists, or other install-time debris -- same
+# size-reduction goal the week 08 day 1 research prompt asked about.
+# Can't switch to a smaller *base* image between stages, though: both
+# stages need the SAME l4t-pytorch image, since that's what provides the
+# CUDA/cuDNN/TensorRT/PyTorch stack nothing lighter on this architecture
+# does, and pip's dependency resolver needs to see that preinstalled torch
+# to correctly treat `transformers`' torch dependency as already satisfied
+# (see requirements-jetson.txt) instead of trying to reinstall it.
+
+FROM nvcr.io/nvidia/l4t-pytorch:r36.2.0-pth2.2-py3 AS builder
+
+WORKDIR /build
+COPY requirements-jetson.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements-jetson.txt
+
+FROM nvcr.io/nvidia/l4t-pytorch:r36.2.0-pth2.2-py3
+
+# curl: HEALTHCHECK below hits the service's own /health endpoint over
+# plain HTTP -- no heavier client needed, and this is the one apt package
+# genuinely missing from the base image for that purpose.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /install /usr/local
+
+WORKDIR /app
+COPY src/ src/
+COPY config/ config/
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+# Redundant with docker-compose.jetson.yml's own healthcheck: block is
+# defined the same either way, but a bare `docker run` (no compose) still
+# gets a working healthcheck this way, and compose's explicit block
+# overrides this one when both are present -- see that file's comment.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
+
+CMD ["python3", "-m", "uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
