@@ -51,8 +51,12 @@ def test_run_smoke_test_accepts_fp16_dummy_input(tmp_path: Path) -> None:
     input data type. Actual: (tensor(float)), expected: (tensor(float16))`.
     Uses a tiny synthetic linear layer, not real CLIP -- this needs no
     network/HF download, unlike `test_main_reaches_torch_boundary` above.
+
+    Unlike the `*_reaches_torch_boundary` tests in this suite, which assert
+    that torch is ABSENT, this one needs torch present -- so it is skipped,
+    not failed, in the torch-less environment the rest of the suite targets.
     """
-    import torch
+    torch = pytest.importorskip("torch")
     from utils.config import load_config
 
     config = load_config(write_config(tmp_path))
