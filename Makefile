@@ -19,7 +19,7 @@ setup:
 	$(PYTHON) -m pip install --upgrade pip
 	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
 
-## Трек B (edge-ai): CLIP на edge, ONNX-экспорт, Jetson-бенчмарк.
+## Трек B (Edge AI): CLIP на edge, ONNX-экспорт, Jetson-бенчмарк.
 download-models:
 	PYTHONPATH=. $(PYTHON) scripts/01_download_models.py
 
@@ -32,7 +32,7 @@ benchmark:
 jetson-benchmark:
 	PYTHONPATH=. $(PYTHON) scripts/jetson_benchmark.py $(if $(HOST),--host $(HOST),)
 
-## Трек A (cv-inspection): zero-shot дефектоскопия на CLIP.
+## Трек A (CV для дефектоскопии): zero-shot дефектоскопия на CLIP.
 classify:
 	@if [ -z "$(IMAGES)" ]; then echo "Usage: make classify IMAGES=path/to/images [ARGS=...]"; exit 1; fi
 	PYTHONPATH=. $(PYTHON) scripts/clip_classifier.py --input-dir $(IMAGES) $(ARGS)
@@ -63,7 +63,7 @@ defect-pipeline:
 	PYTHONPATH=. $(PYTHON) scripts/run_diffusion_pipeline.py $(INPAINT_ARGS)
 	PYTHONPATH=. $(PYTHON) scripts/generate_defect_comparison_report.py $(REPORT_ARGS)
 
-## Бонус трека C (vlm-assistants): production VLM-сервис (FastAPI), src/api/.
+## Бонус трека C (VLM и ассистенты): production VLM-сервис (FastAPI), src/api/.
 ## Нужны docker-compose.jetson.yml/Dockerfile.jetson (скопированы) -- build-jetson
 ## реально собирается только на arm64/Jetson или с buildx+QEMU.
 serve:
@@ -72,7 +72,7 @@ serve:
 build-jetson:
 	docker compose -f docker-compose.jetson.yml build
 
-## Трек D (robotics-ot): капстоун -- CV+VLM+манипулятор+k3s.
+## Трек D (робототехника и АСУ ТП): капстоун -- CV+VLM+манипулятор+k3s.
 ## Оригинальный "day 2" агрегатор памяти (generate_capstone_memory_report.py)
 ## не перенесён в этот репозиторий -- он честно читает реальный
 ## monitoring/jetson/docker-compose.exporters.yml недели 10 (эксплуатация

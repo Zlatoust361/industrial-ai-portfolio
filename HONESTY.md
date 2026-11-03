@@ -8,7 +8,7 @@
 верификации исходного проекта; здесь оставлены только записи,
 относящиеся к коду, перенесённому в этот репозиторий.
 
-## Трек A — `cv-inspection/` (zero-shot классификация, pipeline, синтетические дефекты, детекторы)
+## Трек A — CV для дефектоскопии (`src/models/zero_shot.py`, `pipeline/`, `src/synthetic/`, `dataset_pipeline/`, `modern_detectors/`)
 
 - **Zero-shot классификация (`scripts/clip_classifier.py`)**: тот же
   version-skew баг, что и в треке B (`transformers` вернул
@@ -39,7 +39,7 @@
   находка про воспроизводимость, не выдано за статистически значимый
   результат (подробности — `modern_detectors/README.md`'s Honesty note).
 
-## Трек B — `edge-ai/` (CLIP на edge, INT4/TensorRT, сжатие моделей)
+## Трек B — Edge AI (`src/models/clip.py`, `scripts/01–03_*.py`, `quantization/`, `distillation/`)
 
 - **CLIP edge inference (`src/models/clip.py`, `scripts/01-03_*.py`)**:
   первый реальный прогон на dev-машине с реальной сетью нашёл два
@@ -66,7 +66,7 @@
   калибровку бюджета, не гарантированный результат одного числа
   (подробности — `distillation/README.md`'s Honesty note).
 
-## Трек C — `vlm-assistants/` (captioning/VQA, RAG)
+## Трек C — VLM и ассистенты (`captioning/`, `rag/`, `src/api/`)
 
 - **RAG (`rag/`)**: реальный прогон на dev-машине нашёл
   `ValueError: Sequence length must be less than max_position_embeddings`
@@ -85,7 +85,7 @@
   пор нет сети до `huggingface.co`, фикс обоснован реальным traceback и
   документированным API, а не повторным прогоном.
 
-## Трек D — `robotics-ot/` (ROS2, капстоун-сортировка, аудит безопасности/лицензий)
+## Трек D — Робототехника и АСУ ТП (`ros2_ws/`, `src/scenarios/`, `src/robot/`, `k3s/`, `assistant/`, `compliance/`)
 
 - **ROS2 + open-vocabulary детекция (`ros2_ws/`)**: первый реальный
   `colcon build`+`ros2 launch` на dev-машине — нашёл и исправил
