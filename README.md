@@ -1,5 +1,8 @@
 # Промышленное компьютерное зрение + VLM — портфолио по трекам
 
+[![tests](https://github.com/Zlatoust361/industrial-ai-portfolio/actions/workflows/ci.yml/badge.svg)](https://github.com/Zlatoust361/industrial-ai-portfolio/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Этот репозиторий — не курс и не весь мой проект, а выборка рабочего
 кода из более крупной практики по промышленному CV/VLM/робототехнике,
 разложенная по профилям вакансий, а не по хронологии обучения. Если вы
@@ -88,19 +91,29 @@ README и Makefile с `make test`/`make demo` — тесты реально пр
 (`requirements.txt`/`requirements-dev.txt`); у пакетов с собственным
 `Makefile` — своя `make setup` при необходимости отдельных зависимостей.
 
-**Как проверялось**: каждый пакет выше реально прогнан через свой
-`make test`/`pytest` в этом точном виде перед коммитом — не просто
-скопирован. Единственные ожидаемые падения — 8 тестов с именем
-`*_reaches_torch_boundary`/`*_reaches_the_real_torch_boundary`
-(`tests/test_api_app.py` ×4, `quantization/tests/` ×3,
-`assistant/tests/test_vision_bridge.py` ×1): они падают одинаково и в
-исходном проекте — эта рабочая среда не имеет сетевого доступа к
-`huggingface.co`, поэтому тест не долетает до ожидаемой точки отказа
-«`torch` не установлен», а получает сетевую ошибку раньше. ROS2
-(`ros2_ws/`) не прогнан здесь вообще — для него нужен установленный
-ROS2 Humble, которого в этой среде нет; проверен только синтаксически
-(`py_compile`).
+**Как проверялось**: каждый пакет выше прогоняется в CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) на каждый push,
+двумя джобами — и это не удобство, а следствие того, как написаны тесты:
 
-## Контакты
+- `core` — среда **без** torch (`requirements-ci-core.txt`): root,
+  `pipeline/`, `dataset_pipeline/`, `tracking/`, `assistant/`,
+  `quantization/`. Их тесты `*_reaches_torch_boundary` утверждают, что
+  torch отсутствует, и в среде с torch падают — поэтому ML-стек сюда
+  не ставится. Единственный тест, которому torch нужен
+  (`quantization/…/test_run_smoke_test_accepts_fp16_dummy_input`), в этой
+  среде пропускается, не падает.
+- `ml` — полный стек из `requirements.txt` (torch CPU, transformers,
+  ultralytics): `classical_cv/`, `modern_detectors/`, `distillation/`,
+  `captioning/`, `rag/`, `compliance/`. Сеть до `huggingface.co` тестам
+  не нужна — проверено в среде, где она заблокирована.
 
-`<контакт для вакансий/проектов>`
+ROS2 (`ros2_ws/`) в CI не прогоняется — нужен установленный ROS2 Humble;
+проверен только синтаксически (`py_compile`). Реальный Jetson,
+манипулятор и k3s-кластер в CI, разумеется, не участвуют — что из этого
+прогнано на физическом железе, а что нет, по каждому треку сказано в
+[`HONESTY.md`](./HONESTY.md).
+
+## Контакты и лицензия
+
+Связаться по вакансии или проекту — через [профиль GitHub](https://github.com/Zlatoust361).
+Код — под лицензией MIT, см. [`LICENSE`](LICENSE).
