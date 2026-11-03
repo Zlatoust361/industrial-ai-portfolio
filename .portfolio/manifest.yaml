@@ -1,0 +1,114 @@
+# Манифест синхронизации с источником — см. .portfolio/sync.py и UPDATING.md.
+# Источник: закрытая монорепа vlm-course (рядом с этим репо или через PORTFOLIO_SOURCE).
+source: ../vlm-course
+
+# Зеркалируется 1:1 (путь в источнике == путь в портфолио). Каталог целиком —
+# значит, ВСЕ его файлы; новый файл в источнике появится здесь после apply.
+mirror:
+  - assistant
+  - captioning
+  - classical_cv
+  - compliance
+  - config
+  - dataset_pipeline
+  - distillation
+  - docs            # фикстура для rag/, не документация
+  - k3s
+  - modern_detectors
+  - pipeline
+  - quantization
+  - rag
+  - ros2_ws
+  - src
+  - tracking
+  - Dockerfile.jetson
+  - docker-compose.jetson.yml
+  - requirements.txt
+  - requirements-dev.txt
+  # scripts/ и tests/ — НЕ целиком: в источнике есть скрипты и тесты недель,
+  # которых в портфолио нет. Поэтому — пофайлово.
+  - scripts/01_download_models.py
+  - scripts/02_convert_onnx.py
+  - scripts/03_benchmark.py
+  - scripts/clip_classifier.py
+  - scripts/generate_defect_comparison_report.py
+  - scripts/generate_defect_masks.py
+  - scripts/jetson_benchmark.py
+  - scripts/optimize_prompts.py
+  - scripts/run_diffusion_pipeline.py
+  - scripts/run_scenario_demo.py
+  - scripts/train_linear_head.py
+  - scripts/validate_k3s_manifests.py
+  - tests/__init__.py
+  - tests/fakes.py
+  - tests/test_api_app.py
+  - tests/test_api_dependencies.py
+  - tests/test_api_metrics.py
+  - tests/test_api_schemas.py
+  - tests/test_benchmark.py
+  - tests/test_clip.py
+  - tests/test_clip_tensorrt.py
+  - tests/test_config.py
+  - tests/test_config_environment.py
+  - tests/test_dataset.py
+  - tests/test_diffusion_config.py
+  - tests/test_diffusion_pipeline.py
+  - tests/test_generate_defect_comparison_report.py
+  - tests/test_jetson.py
+  - tests/test_linear_head.py
+  - tests/test_logging_config.py
+  - tests/test_manipulator.py
+  - tests/test_mask_generation.py
+  - tests/test_memory.py
+  - tests/test_models_base.py
+  - tests/test_models_factory.py
+  - tests/test_onnx_parity.py
+  - tests/test_preprocessing.py
+  - tests/test_prompt_optimization.py
+  - tests/test_prompts.py
+  - tests/test_quality_assessment.py
+  - tests/test_robot_layer.py
+  - tests/test_run_diffusion_pipeline.py
+  - tests/test_scenario_color_sorting.py
+  - tests/test_scenario_defect_detection.py
+  - tests/test_scenarios_base.py
+  - tests/test_scenarios_config.py
+  - tests/test_scenarios_image_sources.py
+  - tests/test_seed.py
+  - tests/test_synthetic_config.py
+  - tests/test_validate_k3s_manifests.py
+  - tests/test_zero_shot.py
+
+# Зеркалируемые файлы, которые портфолио правит у себя. sync их не трогает,
+# но показывает расхождение — правку надо вернуть в источник и убрать отсюда.
+patched:
+  - quantization/tests/test_script_02_export_onnx.py   # pytest.importorskip("torch"), 2026-11-03
+
+# Принадлежит только портфолио (sync не касается): README.md, HONESTY.md,
+# Makefile, pyproject.toml, .gitignore, requirements-ci-core.txt, LICENSE,
+# .github/, .portfolio/, UPDATING.md.
+
+exclude:
+  - "**/outputs/**"
+  - "**/*.onnx"
+  - "**/*.engine"
+  - "**/*.pt"
+
+# Если в копируемом файле есть это — apply останавливается. Коммерческие
+# материалы и персональные данные в витрину не попадают.
+forbidden:
+  - "\\bруб\\.?\\b|₽"
+  - "прайс|стоимость курса|цена курса"
+  - "the-construct|theconstruct"
+  - "\\+7[ (]?\\d{3}"
+  - "@gmail\\.com|@yandex\\.ru|@mail\\.ru"
+
+# Что прогнать после apply. То же, что делает CI (две среды — см. README).
+verify:
+  - "python -m ruff check src tests scripts"
+  - "python -m pytest -q"
+  - "cd pipeline && PYTHONPATH=. python -m pytest -q tests/"
+  - "cd dataset_pipeline && PYTHONPATH=. python -m pytest -q tests/"
+  - "cd tracking && PYTHONPATH=. python -m pytest -q tests/"
+  - "PYTHONPATH=. python -m pytest -q assistant/tests/"
+  - "cd quantization && PYTHONPATH=. python -m pytest -q tests/"
