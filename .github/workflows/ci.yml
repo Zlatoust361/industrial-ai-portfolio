@@ -1,0 +1,58 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # Среда без torch -- та, в которой писались и проверялись эти пакеты.
+  # Их тесты `*_reaches_torch_boundary` утверждают, что torch отсутствует,
+  # поэтому ставить ML-стек сюда нельзя (см. README, "Как проверялось").
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-ci-core.txt -r requirements-dev.txt
+      - name: lint (ruff)
+        run: python -m ruff check src tests scripts
+      - name: root -- общий пакет (src/, scripts/, k3s-манифесты, FastAPI)
+        run: python -m pytest -q
+      - name: pipeline/ -- визуальный контроль, 7 стадий, quality gate
+        run: cd pipeline && PYTHONPATH=. python -m pytest -q tests/
+      - name: dataset_pipeline/ -- синтетические датасеты, 8 стадий
+        run: cd dataset_pipeline && PYTHONPATH=. python -m pytest -q tests/
+      - name: tracking/ -- сглаживание детекций
+        run: cd tracking && PYTHONPATH=. python -m pytest -q tests/
+      - name: assistant/ -- VLM-ассистент, ROS2 + OPC UA через один action_executor
+        run: PYTHONPATH=. python -m pytest -q assistant/tests/
+      - name: quantization/ -- INT4 + TensorRT (fp16-smoke пропускается без torch)
+        run: cd quantization && PYTHONPATH=. python -m pytest -q tests/
+
+  # Полный стек (torch CPU, transformers, ultralytics) -- пакеты, которым он
+  # нужен для импорта. Сетевой доступ к huggingface.co тестам не требуется.
+  ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: classical_cv/ -- классические детекторы vs CLIP
+        run: PYTHONPATH=. python -m pytest -q classical_cv/tests/
+      - name: modern_detectors/ -- RT-DETR / YOLO с нуля
+        run: PYTHONPATH=. python -m pytest -q modern_detectors/tests/
+      - name: distillation/ -- дистилляция / прунинг / NAS / INT8
+        run: PYTHONPATH=. python -m pytest -q distillation/tests/
+      - name: captioning/ -- captioning/VQA на SmolVLM
+        run: PYTHONPATH=. python -m pytest -q captioning/tests/
+      - name: rag/ -- RAG поверх регламентов
+        run: PYTHONPATH=. python -m pytest -q rag/tests/
+      - name: compliance/ -- аудит лицензий/SBOM/чек-лист
+        run: PYTHONPATH=. python -m pytest -q compliance/tests/
