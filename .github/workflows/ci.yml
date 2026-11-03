@@ -34,9 +34,16 @@ jobs:
         run: cd quantization && PYTHONPATH=. python -m pytest -q tests/
 
   # Полный стек (torch CPU, transformers, ultralytics) -- пакеты, которым он
-  # нужен для импорта. Сетевой доступ к huggingface.co тестам не требуется.
+  # нужен для импорта. HF_HUB_OFFLINE=1 намеренно: тесты
+  # `*_reaches_real_network_boundary` / `*_or_blocked_*` писались в среде без
+  # сети до huggingface.co и утверждают, что загрузка модели НЕ удаётся.
+  # С реальной сетью GitHub Actions они скачивали CLIP и падали на обратном
+  # утверждении -- первый прогон этого workflow так и упал.
   ml:
     runs-on: ubuntu-latest
+    env:
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -104,8 +104,11 @@ README и Makefile с `make test`/`make demo` — тесты реально пр
   среде пропускается, не падает.
 - `ml` — полный стек из `requirements.txt` (torch CPU, transformers,
   ultralytics): `classical_cv/`, `modern_detectors/`, `distillation/`,
-  `captioning/`, `rag/`, `compliance/`. Сеть до `huggingface.co` тестам
-  не нужна — проверено в среде, где она заблокирована.
+  `captioning/`, `rag/`, `compliance/`. Джоба идёт с `HF_HUB_OFFLINE=1`:
+  тесты `*_reaches_real_network_boundary` писались в среде без сети до
+  `huggingface.co` и утверждают, что загрузка модели не удаётся — с
+  живой сетью GitHub Actions они скачали CLIP и упали на обратном
+  утверждении (первый прогон CI это и показал).
 
 ROS2 (`ros2_ws/`) в CI не прогоняется — нужен установленный ROS2 Humble;
 проверен только синтаксически (`py_compile`). Реальный Jetson,
